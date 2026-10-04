@@ -6,7 +6,7 @@ A Quickshell bar widget for Omarchy that shows Pi coding-agent sessions at a gla
 
 - Per-session status: working, waiting for a response, or idle
 - Session details including project directory, model, provider, thinking level, message count, and age
-- Token usage totals for today and all saved sessions
+- Token usage and recorded cost totals for today and all saved sessions
 - Opens Pi in a new terminal from the panel
 - Reads session files locally; prompts and tool contents are never displayed or sent anywhere
 
@@ -40,7 +40,7 @@ omarchy plugin remove io.github.ghir0.pi-agent
 
 A session is considered active for 120 seconds after its latest message. A recent user message or assistant tool call is shown as working; a completed assistant response is shown as waiting for a response.
 
-The helper reads local Pi session JSONL files and emits only session metadata and token usage. It does not include prompt text, assistant response text, tool arguments/results, or credentials in its output. Session files are not modified, and no data is transmitted.
+The helper reads local Pi session JSONL files and emits only session metadata, token usage, and cost values recorded by Pi. Costs are summed from each response's `usage.cost` (USD); the widget does not guess prices, and shows `not recorded` when cost data is absent. It does not include prompt text, assistant response text, tool arguments/results, or credentials in its output. Session files are not modified, and no data is transmitted.
 
 ## Development
 

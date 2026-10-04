@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "id": "io.github.ghir0.pi-agent",
   "name": "Pi Agent Status",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "ghir0",
   "license": "MIT",
-  "description": "Pi coding agent status indicator. Green idle, yellow working, red needs response. Click for session details.",
+  "description": "Pi coding agent status and token-cost monitor for Omarchy. Click for session details and usage totals.",
   "kinds": ["bar-widget"],
   "entryPoints": {
     "barWidget": "Panel.qml"
   },
   "barWidget": {
     "displayName": "Pi Agent",
-    "description": "Colored dot showing Pi agent status with a session details panel.",
+    "description": "Pi session status, token usage, and recorded costs in a session details panel.",
     "category": "Development",
     "allowMultiple": false,
     "defaultSection": "right",

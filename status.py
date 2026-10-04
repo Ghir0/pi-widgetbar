@@ -47,6 +47,23 @@ def add_token_usage(target: dict, usage: dict) -> None:
             target[key] += int(value)
 
 
+COST_FIELDS = ("input", "output", "cacheRead", "cacheWrite", "total")
+
+
+def empty_cost_usage() -> dict:
+    return {key: 0.0 for key in COST_FIELDS}
+
+
+def add_cost_usage(target: dict, usage: dict) -> bool:
+    found = False
+    for key in COST_FIELDS:
+        value = usage.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            target[key] += float(value)
+            found = True
+    return found
+
+
 def session_summary(path: Path) -> dict | None:
     try:
         if path.stat().st_size > MAX_FILE_BYTES:
@@ -61,6 +78,10 @@ def session_summary(path: Path) -> dict | None:
             messages = []
             tokens = empty_token_usage()
             today_tokens = empty_token_usage()
+            costs = empty_cost_usage()
+            today_costs = empty_cost_usage()
+            has_cost = False
+            today_has_cost = False
             today_utc = datetime.now(timezone.utc).date().isoformat()
             model = None
             provider = None
@@ -90,8 +111,14 @@ def session_summary(path: Path) -> dict | None:
                     usage = msg.get("usage") or {}
                     if role == "assistant" and isinstance(usage, dict):
                         add_token_usage(tokens, usage)
-                        if stamp is not None and datetime.fromtimestamp(stamp / 1000.0, timezone.utc).date().isoformat() == today_utc:
+                        is_today = stamp is not None and datetime.fromtimestamp(stamp / 1000.0, timezone.utc).date().isoformat() == today_utc
+                        if is_today:
                             add_token_usage(today_tokens, usage)
+                        message_cost = usage.get("cost")
+                        if isinstance(message_cost, dict):
+                            has_cost = add_cost_usage(costs, message_cost) or has_cost
+                            if is_today:
+                                today_has_cost = add_cost_usage(today_costs, message_cost) or today_has_cost
                     if role:
                         messages.append({
                             "role": role,
@@ -111,6 +138,10 @@ def session_summary(path: Path) -> dict | None:
                     "messages": 0,
                     "tokens": tokens,
                     "todayTokens": today_tokens,
+                    "cost": costs,
+                    "todayCost": today_costs,
+                    "hasCost": has_cost,
+                    "todayHasCost": today_has_cost,
                     "status": "idle",
                     "active": False,
                     "model": model,
@@ -148,6 +179,10 @@ def session_summary(path: Path) -> dict | None:
                 "messages": len(messages),
                 "tokens": tokens,
                 "todayTokens": today_tokens,
+                "cost": costs,
+                "todayCost": today_costs,
+                "hasCost": has_cost,
+                "todayHasCost": today_has_cost,
                 "status": status,
                 "active": active,
                 "model": model,
@@ -187,9 +222,15 @@ def main() -> int:
     today_sessions = [s for s in sessions if str(s.get("startedAt", "")).startswith(today)]
     token_usage = empty_token_usage()
     today_token_usage = empty_token_usage()
+    cost_usage = empty_cost_usage()
+    today_cost_usage = empty_cost_usage()
+    has_cost = False
+    today_has_cost = False
     for session in sessions:
         add_token_usage(token_usage, session.get("tokens") or {})
         add_token_usage(today_token_usage, session.get("todayTokens") or {})
+        has_cost = add_cost_usage(cost_usage, session.get("cost") or {}) or has_cost
+        today_has_cost = add_cost_usage(today_cost_usage, session.get("todayCost") or {}) or today_has_cost
 
     payload = {
         "ok": True,
@@ -204,6 +245,10 @@ def main() -> int:
         "todayCount": len(today_sessions),
         "tokenUsage": token_usage,
         "todayTokenUsage": today_token_usage,
+        "costUsage": cost_usage,
+        "todayCostUsage": today_cost_usage,
+        "hasCost": has_cost,
+        "todayHasCost": today_has_cost,
     }
     print(json.dumps(payload, separators=(",", ":")))
     return 0

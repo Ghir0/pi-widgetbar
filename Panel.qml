@@ -103,6 +103,12 @@ Panel {
     return String(Math.round(n))
   }
 
+  function formatCost(value) {
+    var n = Number(value || 0)
+    if (!isFinite(n)) return "—"
+    return "$" + n.toFixed(n > 0 && n < 0.01 ? 4 : 2)
+  }
+
   function tokenBreakdown(usage) {
     var u = usage || {}
     return "In " + root.formatTokenCount(u.input)
@@ -416,6 +422,17 @@ Panel {
             elide: Text.ElideRight
           }
 
+          Text {
+            text: "Session cost: " + (modelData.hasCost
+              ? root.formatCost((modelData.cost || {}).total) : "not recorded")
+            textFormat: Text.PlainText
+            color: root.dim
+            font.family: root.bar ? root.bar.fontFamily : "sans-serif"
+            font.pixelSize: Style.font.caption
+            width: parent.width
+            elide: Text.ElideRight
+          }
+
           Rectangle {
             visible: index < root.activeSessions.length - 1
             width: parent.width
@@ -454,6 +471,22 @@ Panel {
         }
         Text {
           text: "All saved sessions: " + root.formatTokenCount((root.snapshot.tokenUsage || {}).totalTokens) + " tokens"
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.bar ? root.bar.fontFamily : "sans-serif"
+          font.pixelSize: Style.font.caption
+        }
+        Text {
+          text: "Cost today: " + (root.snapshot.todayHasCost
+            ? root.formatCost((root.snapshot.todayCostUsage || {}).total) : "not recorded")
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.bar ? root.bar.fontFamily : "sans-serif"
+          font.pixelSize: Style.font.caption
+        }
+        Text {
+          text: "Cost all saved sessions: " + (root.snapshot.hasCost
+            ? root.formatCost((root.snapshot.costUsage || {}).total) : "not recorded")
           textFormat: Text.PlainText
           color: root.dim
           font.family: root.bar ? root.bar.fontFamily : "sans-serif"
