@@ -246,7 +246,10 @@ Panel {
 
     Column {
       id: content
-      width: panel.width
+      // KeyboardPanel applies its own card padding and border insets. Use the
+      // content holder's available width, not the outer panel width, so all
+      // child text and rows stay inside the visible card.
+      width: parent.width
       clip: true
       spacing: Style.space(12)
 
