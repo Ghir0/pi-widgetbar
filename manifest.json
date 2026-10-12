@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.ghir0.pi-agent",
   "name": "Pi Agent Status",
-  "version": "0.2.2",
+  "version": "0.2.5",
   "author": "ghir0",
   "license": "MIT",
   "description": "Pi coding agent status and token-cost monitor for Omarchy. Click for session details and usage totals.",

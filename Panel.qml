@@ -12,6 +12,9 @@ Panel {
 
   readonly property string scriptPath: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.github.ghir0.pi-agent/status.py"
 
+  readonly property string focusScriptPath: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.github.ghir0.pi-agent/focus_session.py"
+  property string focusTargetCwd: ""
+
   property var snapshot: ({
     ok: false,
     status: "idle",
@@ -45,6 +48,17 @@ Panel {
     return Qt.rgba(0.60, 0.60, 0.60, 1)
   }
 
+  function tooltipText() {
+    if (!root.snapshot.ok) return "Pi Agent"
+    if (root.activeSessions.length === 0) return "Pi Agent — Nessuna sessione attiva"
+    var lines = ["Pi Agent — " + root.shortStatusLabel()]
+    for (var i = 0; i < root.activeSessions.length; i++) {
+      var s = root.activeSessions[i]
+      lines.push("\u25cf " + root.shortCwd(s.cwd) + " (" + s.status + ")")
+    }
+    return lines.join("\n")
+  }
+
   readonly property bool opened: root.controller.open
 
   // A bar-widget Panel needs explicit dimensions; otherwise its root Item can
@@ -65,6 +79,11 @@ Panel {
   function toggle() {
     if (opened) close()
     else open()
+  }
+
+  function focusPi(cwd) {
+    root.focusTargetCwd = String(cwd || "")
+    if (!focusProcess.running) focusProcess.running = true
   }
 
   function statusLabel() {
@@ -140,36 +159,12 @@ Panel {
       bar: root.bar
       text: "\u25cf"
       useActiveColor: false
-      foreground: root.activeSessions.length > 0
-        ? root.sessionColor(root.activeSessions[0].status) : root.statusColor
+      foreground: root.statusColor
       active: false
-      tooltipText: root.statusLabel()
+      tooltipText: root.tooltipText()
       onPressed: function(buttonCode) {
         if (buttonCode === Qt.MiddleButton) root.refreshStatus()
         else root.toggle()
-      }
-    }
-
-    Repeater {
-      model: root.activeSessions.slice(1)
-      delegate: Text {
-        required property var modelData
-        text: "\u25cf"
-        textFormat: Text.PlainText
-        color: root.sessionColor(modelData.status)
-        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-        font.pixelSize: Style.font.caption
-        height: button.implicitHeight
-        verticalAlignment: Text.AlignVCenter
-
-        MouseArea {
-          anchors.fill: parent
-          acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-          onClicked: function(mouse) {
-            if (mouse.button === Qt.MiddleButton) root.refreshStatus()
-            else root.toggle()
-          }
-        }
       }
     }
 
@@ -198,6 +193,16 @@ Panel {
   Process {
     id: launchPiProcess
     command: ["omarchy", "launch", "tui", "pi"]
+  }
+
+  Process {
+    id: focusProcess
+    command: ["/usr/bin/python3", root.focusScriptPath, root.focusTargetCwd]
+    stderr: StdioCollector { id: focusErrorOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0)
+        console.warn("Pi session focus failed:", focusErrorOutput.text)
+    }
   }
 
   // ------------------------------------------------------------------
@@ -294,21 +299,39 @@ Panel {
 
         Item {
           width: Math.max(0, headerRow.width - headerDot.implicitWidth
-            - headerTitle.implicitWidth - popupLaunchButton.implicitWidth - Style.space(30))
-          height: popupLaunchButton.implicitHeight
+            - headerTitle.implicitWidth - headerButtons.implicitWidth - Style.space(10))
+          height: headerButtons.implicitHeight
         }
 
-        Button {
-          id: popupLaunchButton
-          text: "+"
-          tooltipText: "Apri Pi in una nuova finestra"
-          foreground: root.foreground
-          fontFamily: root.bar ? root.bar.fontFamily : "sans-serif"
-          fontSize: Style.font.bodySmall
-          horizontalPadding: Style.space(8)
-          verticalPadding: Style.space(3)
-          bordered: true
-          onClicked: if (!launchPiProcess.running) launchPiProcess.running = true
+        Row {
+          id: headerButtons
+          spacing: Style.space(8)
+
+          Button {
+            id: refreshButton
+            text: "↻"
+            tooltipText: "Refresh sessions"
+            foreground: root.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : "sans-serif"
+            fontSize: Style.font.bodySmall
+            horizontalPadding: Style.space(8)
+            verticalPadding: Style.space(3)
+            bordered: true
+            onClicked: root.refreshStatus()
+          }
+
+          Button {
+            id: popupLaunchButton
+            text: "+"
+            tooltipText: "Apri Pi in una nuova finestra"
+            foreground: root.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : "sans-serif"
+            fontSize: Style.font.bodySmall
+            horizontalPadding: Style.space(8)
+            verticalPadding: Style.space(3)
+            bordered: true
+            onClicked: if (!launchPiProcess.running) launchPiProcess.running = true
+          }
         }
       }
 
@@ -366,6 +389,7 @@ Panel {
             spacing: Style.space(8)
 
             Text {
+              id: sessionDot
               text: "\u25cf"
               textFormat: Text.PlainText
               color: root.sessionColor(modelData.status)
@@ -373,6 +397,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+              id: sessionLabel
               text: root.shortCwd(modelData.cwd) + " · "
                 + (modelData.status === "working" ? "Working"
                   : modelData.status === "needs_response" ? "Waiting" : "Active")
@@ -381,8 +406,33 @@ Panel {
               font.family: root.bar ? root.bar.fontFamily : "sans-serif"
               font.pixelSize: Style.font.body
               elide: Text.ElideMiddle
-              width: parent.width - Style.space(20)
+              width: Math.max(0, parent.width - sessionDot.implicitWidth - sessionFocusBtn.implicitWidth - parent.spacing * 2)
             }
+            Button {
+              id: sessionFocusBtn
+              text: "\u2197"
+              tooltipText: "Vai alla finestra Pi"
+              foreground: root.foreground
+              fontFamily: root.bar ? root.bar.fontFamily : "sans-serif"
+              fontSize: Style.font.bodySmall
+              horizontalPadding: Style.space(6)
+              verticalPadding: Style.space(2)
+              bordered: true
+              onClicked: root.focusPi(modelData.cwd)
+            }
+          }
+
+          Text {
+            visible: modelData.lastTask && modelData.lastTask !== ""
+            text: modelData.lastTask
+            textFormat: Text.PlainText
+            color: root.dim
+            font.family: root.bar ? root.bar.fontFamily : "sans-serif"
+            font.pixelSize: Style.font.caption
+            width: parent.width
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
           }
 
           Text {

@@ -12,7 +12,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-SESSION_ROOT = Path(os.environ.get("PI_CODING_AGENT_DIR", Path.home() / ".pi" / "agent")) / "sessions"
+_pi_dir = os.environ.get("PI_CODING_AGENT_DIR", "")
+if not _pi_dir:
+    _pi_dir = Path.home() / ".pi" / "agent"
+SESSION_ROOT = Path(_pi_dir) / "sessions"
 MAX_SESSIONS = 5000
 MAX_FILE_BYTES = 16 * 1024 * 1024
 ACTIVE_SECONDS = 120
@@ -64,6 +67,30 @@ def add_cost_usage(target: dict, usage: dict) -> bool:
     return found
 
 
+def extract_task_text(msg: dict) -> str:
+    content = msg.get("content")
+    if isinstance(content, str):
+        text = content.strip()
+        return text[:120] + ("..." if len(text) > 120 else "") if text else ""
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict):
+                t = block.get("type")
+                if t == "text":
+                    text = block.get("text", "").strip()
+                    if text:
+                        return text[:120] + ("..." if len(text) > 120 else "")
+                elif t == "thinking":
+                    text = block.get("thinking", "").strip()
+                    if text:
+                        return text[:120] + ("..." if len(text) > 120 else "")
+                elif t == "code":
+                    text = block.get("code", "").strip()
+                    if text:
+                        return "[code] " + text[:110] + ("..." if len(text) > 110 else "")
+    return ""
+
+
 def session_summary(path: Path) -> dict | None:
     try:
         if path.stat().st_size > MAX_FILE_BYTES:
@@ -86,6 +113,7 @@ def session_summary(path: Path) -> dict | None:
             model = None
             provider = None
             thinking_level = None
+            last_task = ""
 
             for line in lines:
                 line = line.strip()
@@ -119,6 +147,10 @@ def session_summary(path: Path) -> dict | None:
                             has_cost = add_cost_usage(costs, message_cost) or has_cost
                             if is_today:
                                 today_has_cost = add_cost_usage(today_costs, message_cost) or today_has_cost
+                    if role in ("user", "assistant"):
+                        task_text = extract_task_text(msg)
+                        if task_text:
+                            last_task = task_text
                     if role:
                         messages.append({
                             "role": role,
@@ -147,6 +179,7 @@ def session_summary(path: Path) -> dict | None:
                     "model": model,
                     "provider": provider,
                     "thinkingLevel": thinking_level,
+                    "lastTask": last_task,
                 }
 
             last_msg = messages[-1]
@@ -188,6 +221,7 @@ def session_summary(path: Path) -> dict | None:
                 "model": model,
                 "provider": provider,
                 "thinkingLevel": thinking_level,
+                "lastTask": last_task,
             }
     except Exception:
         return None
